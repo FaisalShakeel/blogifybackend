@@ -33,6 +33,10 @@ const BlogSchema=new Schema({
         type:Array,
         default:[]
     },
+    content:{
+        type:String,
+        required:true
+    },
     isInDraft:{
         type:Boolean,
         default:false

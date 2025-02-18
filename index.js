@@ -6,6 +6,7 @@ const userRouter=require('./Routes/UserRoutes')
 const blogRouter=require('./Routes/BlogRoutes')
 const connectToMongoDB = require('./dbconnection');
 const cookieParser = require('cookie-parser');
+const { getHomePageData } = require('./Controllers/HomeController');
 const app = express();
 // Connect to MongoDB
 connectToMongoDB();
@@ -25,6 +26,7 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use("/users",userRouter)
 app.use("/blogs",blogRouter)
+app.get("/",getHomePageData) //setting the route to get homepage data like blogs,popular blogs and featured authors
 // Not found router
 app.get('*', (req, res) => {
   res.status(404).json({message:"Not Found!"});

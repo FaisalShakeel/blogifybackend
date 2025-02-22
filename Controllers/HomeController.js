@@ -2,6 +2,7 @@ const UserModel = require('../Models/UserModel');
 const BlogModel = require('../Models/BlogModel');
 
 exports.getHomePageData = async (req, res) => {
+  
   try {
     // Fetch popular blogs with proper error handling and null checks
     const popularBlogs = await BlogModel.aggregate([

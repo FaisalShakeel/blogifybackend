@@ -59,3 +59,27 @@ exports.addBlog = async (req, res) => {
         });
     }
 };
+exports.getBlogById=async (req, res) => {
+    try {
+        const { blogId } = req.params;
+
+        // Validate if blogId is provided
+        if (!blogId) {
+            return res.status(400).json({ message: 'Blog ID is required' });
+        }
+
+        // Find the blog by ID
+        const blog = await BlogModel.findById(blogId);
+
+        // Check if blog exists
+        if (!blog) {
+            return res.status(404).json({ message: 'Blog not found' });
+        }
+
+        // Return the blog
+        res.status(200).json({success:true, blog});
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Server error' });
+    }
+}

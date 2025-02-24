@@ -83,3 +83,42 @@ exports.getBlogById=async (req, res) => {
         res.status(500).json({ message: 'Server error' });
     }
 }
+
+exports.likeBlog = async (req, res) => {
+    try {
+      const userId = req.user.id; // ID of the person liking the blog
+      const { blogId } = req.body; // ID of the blog being liked
+  
+      // Find the blog by ID
+      const blog = await BlogModel.findById(blogId);
+  
+      if (!blog) {
+        return res.status(404).json({ message: "Blog not found" });
+      }
+  
+      // Check if the user has already liked the blog
+      const userHasLiked = blog.likedBy.includes(userId);
+  
+      if (userHasLiked) {
+        // If already liked, remove the user from the likedBy list
+      blog.likedBy = blog.likedBy.filter(id => id.toString() !== userId.toString());
+        await blog.save();
+        return res.status(200).json({success:true, message: "You have unliked the blog",blog });
+      } else {
+        // If not liked, add the user to the likedBy list
+        blog.likedBy.push(userId);
+        // const socketID=getReceiverSocketId(video.uploadedBy)
+        // const notification=new NotificationModel({sentByName:req.user.name,sentByPhotoUrl:req.user.profilePhotoUrl,title:`${req.user.name} Has Liked Your Video:`+video.title,type:"Liked Video", sentBy:req.user.id,sentTo:video.uploadedBy,videoId:video._id})
+        //       getIO().to(socketID).emit("new-notification",notification)
+      
+        //       await blog.save();
+        //       await notification.save()
+        await blog.save()
+        return res.status(200).json({success:true, message: "You have liked the blog", blog });
+      }
+    } catch (error) {
+      console.error("Error liking/unliking blog:", error);
+      return res.status(500).json({ message: "An error occurred", error: error.message });
+    }
+  };
+  

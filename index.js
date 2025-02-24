@@ -4,6 +4,8 @@ const path=require('path')
 require('dotenv').config()
 const userRouter=require('./Routes/UserRoutes')
 const blogRouter=require('./Routes/BlogRoutes')
+const listRouter = require('./Routes/ListRoutes')
+const authRouter=require('./Routes/AuthRoutes')
 const connectToMongoDB = require('./dbconnection');
 const cookieParser = require('cookie-parser');
 const { getHomePageData } = require('./Controllers/HomeController');
@@ -26,6 +28,8 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use("/users",userRouter)
 app.use("/blogs",blogRouter)
+app.use("/lists",listRouter)
+app.use("/auth",authRouter)
 app.get("/",getHomePageData) //setting the route to get homepage data like blogs,popular blogs and featured authors
 // Not found router
 app.get('*', (req, res) => {

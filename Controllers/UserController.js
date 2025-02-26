@@ -47,7 +47,7 @@ exports.createAccount = async (req, res) => {
 
     // Generate JWT token
     const token = jwt.sign(
-      {name:newUser.name,id: newUser._id, email: newUser.email, role: newUser.role,profilePhotoUrl:newUser.profilePhotoUrl},
+      {name:newUser.name,id: newUser._id, email: newUser.email, role: newUser.role,profilePhotoUrl:newUser.profilePhotoUrl,bio:newUser.bio},
       process.env.JWT_SECRET, // Use a secret key from environment variables
       { expiresIn: "7d" }
     );
@@ -104,7 +104,7 @@ exports.login = async (req, res) => {
   console.log("JWT SECRET",process.env.JWT_SECRET) 
       // Generate JWT token
       const token = jwt.sign(
-        {name:user.name, id: user._id, email: user.email, role: user.role,profilePhotoUrl:user.profilePhotoUrl },
+        {name:user.name, id: user._id, email: user.email, role: user.role,profilePhotoUrl:user.profilePhotoUrl,bio:user.bio},
         process.env.JWT_SECRET, // Use a secret key from environment variables
         { expiresIn: "7d" }
       );

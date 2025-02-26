@@ -25,6 +25,11 @@ const BlogSchema=new Schema({
         type:String,
         required:true
     },
+    publishedByBio:{
+        type:String,
+        required:true,
+        default:"Author on blogify"
+    },
     likedBy:{
         type:Array,
         default:[]

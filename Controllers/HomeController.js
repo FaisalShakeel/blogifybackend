@@ -3,133 +3,178 @@ const BlogModel = require('../Models/BlogModel');
 
 exports.getHomePageData = async (req, res) => {
   
+  
   try {
-    // Fetch popular blogs with proper error handling and null checks
+    // Fetch popular blogs with replies counting
     const popularBlogs = await BlogModel.aggregate([
       {
         $match: {
-          isInDraft: false // Only include blogs that are not in draft
-        }
+          isInDraft: false, // Only include blogs that are not in draft
+        },
       },
       {
         $addFields: {
           likedBy: { $ifNull: ['$likedBy', []] },
-          comments: { $ifNull: ['$comments', []] },
-        }
+          comments: { $ifNull: ['$comments', []] }, // Ensure comments is always an array
+        },
       },
+      // Before unwinding, calculate like count
       {
         $addFields: {
-          likeCount: { 
-            $cond: {
-              if: { $isArray: '$likedBy' },
-              then: { $size: '$likedBy' },
-              else: 0
-            }
+          likeCount: { $size: { $ifNull: ['$likedBy', []] } },
+        }
+      },
+      // Skip the unwinding and grouping process if there are no real comments to process
+      {
+        $addFields: {
+          hasComments: { 
+            $cond: { 
+              if: { $gt: [{ $size: "$comments" }, 0] }, 
+              then: true, 
+              else: false 
+            } 
           },
-          commentCount: {
-            $cond: {
-              if: { $isArray: '$comments' },
-              then: { $size: '$comments' },
-              else: 0
+          commentCount: 0, // Default to 0
+          replyCount: 0    // Default to 0
+        }
+      },
+      // Conditionally process comments only if they exist
+      {
+        $facet: {
+          // Blogs with no comments (skip comment processing)
+          noComments: [
+            { $match: { hasComments: false } },
+            {
+              $project: {
+                _id: 1,
+                title: 1,
+                content: 1,
+                publishedByName: 1,
+                publishedByPhotoUrl: 1,
+                category: 1,
+                createdAt: 1,
+                likeCount: 1,
+                commentCount: 1, // Will be 0
+                replyCount: 1,   // Will be 0
+                popularityScore: "$likeCount" // Just likeCount for blogs with no comments
+              }
             }
-          }
-        }
-      },
-      {
-        $addFields: {
-          popularityScore: { $add: ['$likeCount', '$commentCount'] }
-        }
-      },
-      {
-        // Ensure only blogs with at least one like or comment
-        $match: {
-          $or: [
-            { "likedBy.0": { $exists: true } }, // At least one like
-            { "comments.0": { $exists: true } } // At least one comment
+          ],
+          // Blogs with comments (process them)
+          withComments: [
+            { $match: { hasComments: true } },
+            // Unwind comments to process each comment individually
+            {
+              $unwind: {
+                path: '$comments',
+                preserveNullAndEmptyArrays: false, // Don't keep empty ones here
+              },
+            },
+            // Add replyCount for each comment
+            {
+              $addFields: {
+                'comments.replies': { $ifNull: ['$comments.replies', []] },
+                'comments.replyCount': { $size: { $ifNull: ['$comments.replies', []] } }
+              },
+            },
+            // Group back to reconstruct the blog document with counts
+            {
+              $group: {
+                _id: '$_id',
+                title: { $first: '$title' },
+                content: { $first: '$content' },
+                publishedByName: { $first: '$publishedByName' },
+                publishedByPhotoUrl: { $first: '$publishedByPhotoUrl' },
+                category: { $first: '$category' },
+                createdAt: { $first: '$createdAt' },
+                likeCount: { $first: '$likeCount' },
+                comments: { $push: '$comments' },
+                commentCount: { $sum: 1 }, // Count actual comments
+                replyCount: { $sum: '$comments.replyCount' }
+              },
+            },
+            {
+              $addFields: {
+                popularityScore: { $add: ['$likeCount', '$commentCount', '$replyCount'] }
+              },
+            }
           ]
         }
       },
-      {
-        $sort: { 
-          popularityScore: -1,
-          createdAt: -1 
-        }
-      },
-      {
-        $limit: 5
-      },
+      // Combine results from both paths
       {
         $project: {
-          _id: 1,
-          title: 1,
-          content: 1,
-          publishedByName: 1,
-          publishedByPhotoUrl: 1,
-          category: 1,
-          createdAt: 1,
-          likeCount: 1,
-          commentCount: 1,
-          popularityScore: 1
+          allBlogs: { $concatArrays: ["$noComments", "$withComments"] }
         }
+      },
+      { $unwind: "$allBlogs" },
+      { $replaceRoot: { newRoot: "$allBlogs" } },
+      // Final filtering for popular blogs
+      {
+        $match: {
+          $or: [
+            { likeCount: { $gt: 0 } },
+            { commentCount: { $gt: 0 } },
+            { replyCount: { $gt: 0 } }
+          ]
+        },
+      },
+      {
+        $sort: {
+          popularityScore: -1,
+          createdAt: -1,
+        },
+      },
+      {
+        $limit: 5,
       }
     ]);
 
-    // Log the popular blogs for debugging
     console.log('Popular Blogs:', popularBlogs);
 
     // Extract IDs of popular blogs
-    const popularBlogIds = popularBlogs.map(blog => blog._id);
+    const popularBlogIds = popularBlogs.map((blog) => blog._id);
 
     // Fetch regular blogs excluding popular ones and drafts
-    const blogs = await BlogModel.find({ 
+    const blogs = await BlogModel.find({
       _id: { $nin: popularBlogIds },
-      isInDraft: false // Only include blogs that are not in draft
+      isInDraft: false,
     })
-    .sort({ createdAt: -1 }) // Sort by creation date
-    .limit(15)
-    .select('title content publishedByName publishedByPhotoUrl category createdAt'); // Select only needed fields
+      .sort({ createdAt: -1 })
+      .limit(15)
+      .select('title content publishedByName publishedByPhotoUrl category createdAt');
 
-    // Fetch featured authors with proper error handling
+    // Fetch featured authors
     const featuredAuthors = await UserModel.aggregate([
       {
-        $match: { 
+        $match: {
           role: 'Author',
-          // Ensure the followers field exists
-          followers: { $exists: true }
-        }
+        },
       },
       {
         $addFields: {
-          // Handle cases where followers array might be null
           followers: { $ifNull: ['$followers', []] },
-          followerCount: {
-            $cond: {
-              if: { $isArray: '$followers' },
-              then: { $size: '$followers' },
-              else: 0
-            }
-          }
-        }
+          followerCount: { $size: { $ifNull: ['$followers', []] } }
+        },
       },
       {
-        $sort: { 
+        $sort: {
           followerCount: -1,
-          createdAt: -1 // Secondary sort by creation date
-        }
+          createdAt: -1,
+        },
       },
       {
-        $limit: 5
+        $limit: 5,
       },
       {
-        // Project only the fields we need
         $project: {
           _id: 1,
           name: 1,
           bio: 1,
           profilePhotoUrl: 1,
-          followerCount: 1
-        }
-      }
+          followerCount: 1,
+        },
+      },
     ]);
 
     // Send the response
@@ -138,22 +183,19 @@ exports.getHomePageData = async (req, res) => {
       blogs,
       featuredAuthors,
       popularBlogs,
-      // Include counts for debugging
       counts: {
         popularBlogs: popularBlogs.length,
         regularBlogs: blogs.length,
-        featuredAuthors: featuredAuthors.length
-      }
+        featuredAuthors: featuredAuthors.length,
+      },
     });
-
   } catch (error) {
     console.error('Error fetching homepage data:', error);
     res.status(500).json({
       success: false,
       message: 'Internal server error!',
       error: error.message,
-      // Include the full error stack in development
-      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
     });
   }
 };

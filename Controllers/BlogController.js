@@ -165,14 +165,7 @@ exports.likeBlog = async (req, res) => {
 
         // Add the comment to the blogs's comments array
        blog.comments.push(newComment);
-    //     const notification= new NotificationModel({sentByName:name,sentByPhotoUrl:profilePhotoUrl,type:"Added Comment",title:`${name} Commented Your Video:`+video.title,sentBy:userId,sentTo:video.uploadedBy,videoId:video._id})
-    //    const socketId=getReceiverSocketId(video.uploadedBy)
-    //    console.log("Socket ID",socketId)
-      
-    //     getIO().to(socketId).emit("new-notification",notification)
-
-    //     // Save the updated video
-    //    await notification.save()
+   
         await blog.save();
 
         // Respond with success
@@ -250,4 +243,60 @@ exports.replyToComment = async (req, res) => {
       message: "An error occurred while replying to the comment.",
     });
   }
-};  
+};
+exports.getBlogsByTag = async (req, res) => {
+  try {
+      const { tag } = req.params;
+
+      if (!tag) {
+          return res.status(400).json({ message: 'Tag is required' });
+      }
+
+      // Fetch blogs that have the specified tag in their tags array
+      const blogs = await BlogModel.find({ tags: tag });
+
+      if (blogs.length === 0) {
+          return res.status(200).json({success:true, message: 'No blogs found with this tag',blogs:[],popularTags:[] });
+      }
+
+      // Fetch all blogs to calculate popular tags
+      const allBlogs = await BlogModel.find({});
+
+      // Calculate popularity score for each blog (likes + comments)
+      const blogPopularity = allBlogs.map(blog => ({
+          blog,
+          popularity: blog.likedBy.length + blog.comments.length
+      }));
+
+      // Sort blogs by popularity (most popular first)
+      blogPopularity.sort((a, b) => b.popularity - a.popularity);
+
+      // Extract tags from the most popular blogs
+      const tagCounts = {};
+      blogPopularity.forEach(({ blog }) => {
+          blog.tags.forEach(t => {
+              if (tagCounts[t]) {
+                  tagCounts[t]++;
+              } else {
+                  tagCounts[t] = 1;
+              }
+          });
+      });
+
+      // Sort tags by frequency (most frequent first)
+      const popularTags = Object.keys(tagCounts).sort((a, b) => tagCounts[b] - tagCounts[a]).slice(0, 10); // Top 10 popular tags
+
+      // Return blogs and popular tags in the response
+      res.status(200).json({
+          message: 'Blogs fetched successfully',
+          blogs,
+          success:true,
+          popularTags
+      });
+
+  } catch (error) {
+      console.error('Error fetching blogs by tag:', error);
+      res.status(500).json({ message: 'Internal server error' });
+  }
+};
+  

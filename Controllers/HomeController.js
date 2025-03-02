@@ -173,6 +173,7 @@ exports.getHomePageData = async (req, res) => {
           bio: 1,
           profilePhotoUrl: 1,
           followerCount: 1,
+          followers:1
         },
       },
     ]);

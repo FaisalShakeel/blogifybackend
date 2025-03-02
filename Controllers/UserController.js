@@ -134,3 +134,65 @@ exports.login = async (req, res) => {
       res.status(500).json({ success: false, message: "Internal server error" });
     }
   };
+  exports.follow = async (req, res) => {
+   
+    const userId = req.user.id; // getting user ID from decoded object in middleware
+    const { followingId } = req.body; // ID of the user to follow/unfollow
+
+    if (!followingId) {
+        return res.status(400).json({ success: false, message: "User ID to follow is required" });
+    }
+
+    try {
+        // Fetch both users from the database
+        const user = await UserModel.findById(userId);
+        const userToFollow = await UserModel.findById(followingId);
+
+        if (!user || !userToFollow) {
+            return res.status(404).json({ success: false, message: "User not found" });
+        }
+
+        // Check if the user is already following
+        const isFollowing = user.followings.some(following => following._id.toString() === followingId);
+
+        if (isFollowing) {
+            // Remove the following relationship
+            user.followings = user.followings.filter(following => following._id.toString() !== followingId);
+            userToFollow.followers = userToFollow.followers.filter(follower => follower._id.toString() !== userId);
+
+            await user.save();
+            await userToFollow.save();
+
+            return res.status(200).json({ success: true, message: "Unfollowed the user successfully", author: userToFollow });
+        } else {
+            
+            const userToFollowData = {
+                _id: userToFollow._id,
+                name: userToFollow.name,
+                email: userToFollow.email,       
+                bio:userToFollow.bio,
+                
+            };
+
+            const userData = {
+                _id: user._id,
+                name: user.name,        
+                email: user.email,              
+                bio:user.bio
+              
+            };
+
+            
+            user.followings.push(userToFollowData);
+            userToFollow.followers.push(userData);
+
+            await user.save();
+            await userToFollow.save();
+
+            return res.status(200).json({ success: true, message: "Followed the user successfully", author: userToFollow });
+        }
+    } catch (error) {
+        console.error("Error in follow operation:", error);
+        return res.status(500).json({ success: false, message: "An error occurred", error: error.message });
+    }
+};

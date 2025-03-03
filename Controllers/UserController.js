@@ -1,5 +1,7 @@
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
+const BlogModel = require('../Models/BlogModel')
+const ListModel = require('../Models/ListModel')
 const UserModel = require('../Models/UserModel'); // Adjust the path to your User model
 exports.createAccount = async (req, res) => {
   const { name, email, password, bio, role } = req.body;
@@ -171,6 +173,7 @@ exports.login = async (req, res) => {
                 name: userToFollow.name,
                 email: userToFollow.email,       
                 bio:userToFollow.bio,
+                profilePhotoUrl:userToFollow.profilePhotoUrl
                 
             };
 
@@ -178,7 +181,8 @@ exports.login = async (req, res) => {
                 _id: user._id,
                 name: user.name,        
                 email: user.email,              
-                bio:user.bio
+                bio:user.bio,
+                profilePhotoUrl:user.profilePhotoUrl
               
             };
 
@@ -195,4 +199,52 @@ exports.login = async (req, res) => {
         console.error("Error in follow operation:", error);
         return res.status(500).json({ success: false, message: "An error occurred", error: error.message });
     }
+};
+exports.getProfile = async (req, res) => {
+  const userId = req.params.id; // User ID from request params
+
+  try {
+    // Fetch user data
+    const user = await UserModel.findById(userId).select('-password'); // Exclude password
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    // Fetch blogs created by the user
+    const blogs = await BlogModel.find({ publishedById: userId });
+
+    // Fetch blogs liked by the user
+    const likedBlogs = await BlogModel.find({ likedBy: userId });
+
+    // Fetch lists created by the user
+    const lists = await ListModel.find({ createdBy: userId }).populate('blogs');
+
+    // Fetch blogs saved by the user (blogs in the user's lists)
+    const savedBlogs = [];
+    for (const list of lists) {
+      savedBlogs.push(...list.blogs);
+    }
+
+    // Remove duplicates from savedBlogs (if any)
+    const uniqueSavedBlogs = [...new Set(savedBlogs.map(blog => blog._id.toString()))]
+      .map(id => savedBlogs.find(blog => blog._id.toString() === id));
+
+    // Response object
+    const response = {
+      success: true,
+      message: 'Profile fetched successfully',
+      
+        user,
+        blogs,
+        likedBlogs,
+        savedBlogs: uniqueSavedBlogs,
+        lists,
+    
+    };
+
+    res.status(200).json(response);
+  } catch (error) {
+    console.error('Error fetching profile:', error);
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
 };

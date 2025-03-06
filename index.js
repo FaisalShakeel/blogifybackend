@@ -9,6 +9,7 @@ const authRouter=require('./Routes/AuthRoutes')
 const connectToMongoDB = require('./dbconnection');
 const cookieParser = require('cookie-parser');
 const { getHomePageData } = require('./Controllers/HomeController');
+const { getSearchResults } = require('./Controllers/SearchController');
 const app = express();
 // Connect to MongoDB
 connectToMongoDB();
@@ -30,6 +31,7 @@ app.use("/users",userRouter)
 app.use("/blogs",blogRouter)
 app.use("/lists",listRouter)
 app.use("/auth",authRouter)
+app.use("/search",getSearchResults)
 app.get("/",getHomePageData) //setting the route to get homepage data like blogs,popular blogs and featured authors
 // Not found router
 app.get('*', (req, res) => {

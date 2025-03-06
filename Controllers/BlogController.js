@@ -1,3 +1,4 @@
+const { default: mongoose } = require('mongoose');
 const BlogModel = require('../Models/BlogModel');
 exports.addBlog = async (req, res) => {
     try {
@@ -89,6 +90,98 @@ exports.getBlogById = async (req, res) => {
         res.status(500).json({ message: 'Internal server error' });
     }
 };
+exports.findByIdAndUpdateBlog = async (req, res) => {
+    try {
+        const { blogId } = req.params;
+
+        // Validate blogId
+        if (!blogId) {
+            return res.status(400).json({ success: false, message: 'Blog ID is required' });
+        }
+
+        
+        if (!mongoose.Types.ObjectId.isValid(blogId)) {
+            return res.status(400).json({ success: false, message: 'Invalid Blog ID format' });
+        }
+
+        // Find the existing blog
+        const blog = await BlogModel.findById(blogId);
+        if (!blog) {
+            return res.status(404).json({ success: false, message: 'Blog not found' });
+        }
+
+        // Optionally, add authorization check (e.g., ensure the user owns the blog)
+        if (blog.publishedById.toString() !== req.user.id.toString()) {
+            return res.status(403).json({ success: false, message: 'Unauthorized to update this blog' });
+        }
+
+        // Update the blog and return the updated document
+        const updatedBlog = await BlogModel.findByIdAndUpdate(
+            blogId,
+            { ...req.body, updatedAt: Date.now() }, // Add timestamp for last update
+            { new: true, runValidators: true } // Return updated doc and validate fields
+        );
+
+        if (!updatedBlog) {
+            return res.status(500).json({ success: false, message: 'Failed to update blog' });
+        }
+
+        res.status(200).json({
+            success: true,
+            message: 'Blog successfully updated',
+            data: updatedBlog,
+        });
+    } catch (error) {
+        console.error('Error updating blog:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Internal server error',
+            error: error.message, // Optional: include error details for debugging
+        });
+    }
+};
+exports.deleteBlog = async (req, res) => {
+    try {
+        const { blogId } = req.params;
+
+        // Validate blogId
+        if (!blogId) {
+            return res.status(400).json({ success: false, message: 'Blog ID is required' });
+        }
+
+    
+        if (!mongoose.Types.ObjectId.isValid(blogId)) {
+            return res.status(400).json({ success: false, message: 'Invalid Blog ID format' });
+        }
+
+        // Find the blog
+        const blog = await BlogModel.findById(blogId);
+        if (!blog) {
+            return res.status(404).json({ success: false, message: 'Blog not found' });
+        }
+
+        // Authorization check (optional)
+        if (blog.publishedById.toString() !== req.user.id.toString()) {
+            return res.status(403).json({ success: false, message: 'Unauthorized to delete this blog' });
+        }
+
+        // Delete the blog
+        await BlogModel.findByIdAndDelete(blogId);
+
+        res.status(200).json({
+            success: true,
+            message: 'Blog successfully deleted',
+        });
+    } catch (error) {
+        console.error('Error deleting blog:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Internal server error',
+            error: error.message, // Optional: include error details for debugging
+        });
+    }
+};
+
 exports.likeBlog = async (req, res) => {
     try {
       const userId = req.user.id; // ID of the person liking the blog

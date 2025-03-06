@@ -161,14 +161,34 @@ exports.getList = async (req, res) => {
 exports.updateList = async (req, res) => {
   try {
     const listId = req.params.listId;
-    const { title, description } = req.body;
 
+    // Validate listId
+    if (!listId) {
+      return res.status(400).json({
+        success: false,
+        message: "List ID is required.",
+      });
+    }
+
+    // Prepare update data
+    const updateData = {
+      title: req.body.title,
+      description: req.body.description,
+    };
+
+    // If a file is uploaded, update photoUrl
+    if (req.file) {
+      updateData.photoUrl = process.env.BASE_URL.toString()+req.file.path.toString();
+    }
+
+    // Update the list in the database
     const updatedList = await ListModel.findByIdAndUpdate(
       listId,
-      { title, description },
+      updateData,
       { new: true, runValidators: true }
     );
 
+    // Check if list exists
     if (!updatedList) {
       return res.status(404).json({
         success: false,
@@ -186,6 +206,7 @@ exports.updateList = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "An error occurred while updating the list.",
+      error: error.message, // Optional: Include error details for debugging
     });
   }
 };

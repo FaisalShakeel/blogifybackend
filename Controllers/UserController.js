@@ -248,3 +248,163 @@ exports.getProfile = async (req, res) => {
     res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
+// Update Profile Controller
+exports.updateProfile = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { name, email, bio } = req.body;
+
+    // Prepare update data for the user
+    const updateData = {};
+    if (name) updateData.name = name;
+    if (email) updateData.email = email;
+    if (bio) updateData.bio = bio;
+    if (req.file) updateData.profilePhotoUrl = `${process.env.BASE_URL}${req.file.path}`; // Assumes multer for avatar upload
+
+    // Check if there's anything to update
+    if (Object.keys(updateData).length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'No fields provided for update',
+      });
+    }
+
+    // Update the user in the database
+    const updatedUser = await UserModel.findByIdAndUpdate(
+      userId,
+      { $set: updateData },
+      { new: true, runValidators: true }
+    ).select('-password'); // Exclude password from response
+
+    if (!updatedUser) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+      });
+    }
+
+    // Prepare data to update in blogs and followings/followers
+    const updatedUserData = {
+      _id: updatedUser._id,
+      name: updatedUser.name,
+      bio: updatedUser.bio || '', // Default to empty string if not provided
+      profilePhotoUrl: updatedUser.profilePhotoUrl || '', // Default to empty string if not provided
+    };
+
+    // Update all blogs where the user is the publisher
+    await BlogModel.updateMany(
+      { publishedById: userId },
+      {
+        $set: {
+          publishedByName: updatedUser.name,
+          publishedByPhotoUrl: updatedUser.profilePhotoUrl || '',
+        },
+      }
+    );
+
+    // Update followings arrays in other users where this user is followed
+    await UserModel.updateMany(
+      { 'followings._id': userId },
+      {
+        $set: {
+          'followings.$[elem]': updatedUserData,
+        },
+      },
+      {
+        arrayFilters: [{ 'elem._id': userId }],
+      }
+    );
+
+    // Update followers arrays in other users where this user is a follower
+    await UserModel.updateMany(
+      { 'followers._id': userId },
+      {
+        $set: {
+          'followers.$[elem]': updatedUserData,
+        },
+      },
+      {
+        arrayFilters: [{ 'elem._id': userId }],
+      }
+    );
+
+    res.status(200).json({
+      success: true,
+      message: 'Profile updated successfully',
+      updatedUser,
+    });
+  } catch (error) {
+    console.error('Update profile error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while updating profile',
+    });
+  }
+};
+
+// Change Password Controller
+exports.changePassword = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { currentPassword, newPassword, confirmPassword } = req.body;
+
+    // Basic validation
+    if (!currentPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Current password is required',
+      });
+    }
+
+    if (!newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'New password is required',
+      });
+    }
+
+    if (newPassword !== confirmPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'New password and confirmation do not match',
+      });
+    }
+
+    // Find the user
+    const user = await UserModel.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+      });
+    }
+
+    // Verify current password
+    const isMatch = await bcrypt.compare(currentPassword, user.password);
+    if (!isMatch) {
+      return res.status(400).json({
+        success: false,
+        message: 'Current password is incorrect',
+      });
+    }
+
+    // Hash the new password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+    // Update the password
+    user.password = hashedPassword;
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Password changed successfully',
+    });
+  } catch (error) {
+    console.error('Change password error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while changing password',
+    });
+  }
+};

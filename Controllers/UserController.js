@@ -3,6 +3,8 @@ const bcrypt = require('bcryptjs');
 const BlogModel = require('../Models/BlogModel')
 const ListModel = require('../Models/ListModel')
 const UserModel = require('../Models/UserModel'); // Adjust the path to your User model
+const { getReceiverSocketId, getIO } = require('../io');
+const NotificationModel = require('../Models/NotificationModel');
 exports.createAccount = async (req, res) => {
   const { name, email, password, bio, role } = req.body;
   try {
@@ -158,9 +160,16 @@ exports.login = async (req, res) => {
         const isFollowing = user.followings.some(following => following._id.toString() === followingId);
 
         if (isFollowing) {
+          
             // Remove the following relationship
             user.followings = user.followings.filter(following => following._id.toString() !== followingId);
             userToFollow.followers = userToFollow.followers.filter(follower => follower._id.toString() !== userId);
+            const socketID=getReceiverSocketId(userToFollow._id.toString())
+            console.log("Socket ID",socketID)
+          
+          const notification=  new NotificationModel({sentByName:user.name,sentByPhotoUrl:user.profilePhotoUrl,title:`${user.name} Has Unfollowed You!`,type:"Unfollowed", sentBy:user._id,sentTo:userToFollow._id})
+            getIO().to(socketID).emit("new-notification",notification)
+            await notification.save()
 
             await user.save();
             await userToFollow.save();
@@ -189,6 +198,13 @@ exports.login = async (req, res) => {
             
             user.followings.push(userToFollowData);
             userToFollow.followers.push(userData);
+            const socketID=getReceiverSocketId(userToFollow._id.toString())
+            console.log("Socket ID",socketID)
+           const notification= new NotificationModel({sentByName:user.name,sentByPhotoUrl:user.profilePhotoUrl,type:"Followed",title:`${user.name} Started Following You!`,sentBy:user._id,sentTo:userToFollow._id})
+            getIO().to(socketID).emit("new-notification",notification)
+          
+            
+            await notification.save()    
 
             await user.save();
             await userToFollow.save();

@@ -6,10 +6,13 @@ const userRouter=require('./Routes/UserRoutes')
 const blogRouter=require('./Routes/BlogRoutes')
 const listRouter = require('./Routes/ListRoutes')
 const authRouter=require('./Routes/AuthRoutes')
+const notificationRouter = require('./Routes/NotificationRoutes')
 const connectToMongoDB = require('./dbconnection');
 const cookieParser = require('cookie-parser');
 const { getHomePageData } = require('./Controllers/HomeController');
 const { getSearchResults } = require('./Controllers/SearchController');
+const { initializeSocket } = require('./io'); // Import the module
+const http=require('http')
 const app = express();
 // Connect to MongoDB
 connectToMongoDB();
@@ -31,14 +34,18 @@ app.use("/users",userRouter)
 app.use("/blogs",blogRouter)
 app.use("/lists",listRouter)
 app.use("/auth",authRouter)
+app.use("/notifications",notificationRouter)
 app.use("/search",getSearchResults)
 app.get("/",getHomePageData) //setting the route to get homepage data like blogs,popular blogs and featured authors
 // Not found router
 app.get('*', (req, res) => {
   res.status(404).json({message:"Not Found!"});
 });
+let server = http.createServer(app);
+// Initialize Socket.IO after server setup
+initializeSocket(server);
 // Start the server
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });

@@ -1,5 +1,7 @@
 const { default: mongoose } = require('mongoose');
 const BlogModel = require('../Models/BlogModel');
+const { getReceiverSocketId, getIO } = require('../io');
+const NotificationModel = require('../Models/NotificationModel');
 exports.addBlog = async (req, res) => {
     try {
         // Log the incoming request body and user details
@@ -205,12 +207,12 @@ exports.likeBlog = async (req, res) => {
       } else {
         // If not liked, add the user to the likedBy list
         blog.likedBy.push(userId);
-        // const socketID=getReceiverSocketId(video.uploadedBy)
-        // const notification=new NotificationModel({sentByName:req.user.name,sentByPhotoUrl:req.user.profilePhotoUrl,title:`${req.user.name} Has Liked Your Video:`+video.title,type:"Liked Video", sentBy:req.user.id,sentTo:video.uploadedBy,videoId:video._id})
-        //       getIO().to(socketID).emit("new-notification",notification)
-      
-        //       await blog.save();
-        //       await notification.save()
+    
+        const socketID=getReceiverSocketId(blog.publishedById)
+        const notification=new NotificationModel({sentByName:req.user.name,sentByPhotoUrl:req.user.profilePhotoUrl,title:`${req.user.name} Has Liked Your Blog:`+blog.title,type:"Liked Video", sentBy:req.user.id,sentTo:blog.publishedById,blogId:blog._id})
+        getIO().to(socketID).emit("new-notification",notification)        
+        
+        await notification.save()
         await blog.save()
         return res.status(200).json({success:true, message: "You have liked the blog", blog });
       }
@@ -258,6 +260,11 @@ exports.likeBlog = async (req, res) => {
 
         // Add the comment to the blogs's comments array
        blog.comments.push(newComment);
+       const notification= new NotificationModel({sentByName:req.user.name,sentByPhotoUrl:req.user.profilePhotoUrl,type:"Added Comment",title:`${req.user.name} Commented Your Blog:`+blog.title,sentBy:req.user.id,sentTo:blog.publishedById,blogId:blog._id})
+       const socketId=getReceiverSocketId(blog.publishedById)
+       console.log("Socket ID",socketId)
+        getIO().to(socketId).emit("new-notification",notification)
+       await notification.save() 
    
         await blog.save();
 
@@ -319,7 +326,7 @@ exports.replyToComment = async (req, res) => {
     console.log("Comment Replies After Updating",comment.replies)
     console.log("Latest Comment",comment)
     blog.comments[commentIndex]=comment
-
+   
 
     // Save the updated blog
     await blog.save();

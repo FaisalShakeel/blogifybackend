@@ -130,7 +130,7 @@ exports.getHomePageData = async (req, res) => {
       }
     ]);
 
-    console.log('Popular Blogs:', popularBlogs);
+  
 
     // Extract IDs of popular blogs
     const popularBlogIds = popularBlogs.map((blog) => blog._id);
